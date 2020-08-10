@@ -1,12 +1,11 @@
 const MongoClient = require('mongodb').MongoClient;
-
 const uri = "mongodb+srv://kenny:Password1@cluster0.quwup.mongodb.net/sample_weatherdata?retryWrites=true&w=majority"
 const client = new MongoClient(uri,{ useUnifiedTopology:true });
 
-async function getDataCollection(){
+async function getCollection(){
    await client.connect();
-   const database = client.db('sample_weatherdata');
-   return database.collection('data');
+   const database = client.db('sample_airbnb');
+   return database.collection('listingsAndReviews');
 }
 
 async function closeDB(){
@@ -26,13 +25,42 @@ function executePipePromise(pipe,collection){
 }
 
 async function main(){
-   let collection = await getDataCollection();
+   let airBnB = await getCollection();
 
-   const q1 = { $limit: 2 };
-   const q1 = { $limit: 2 };
-   let pipe = [q1]
+   const matchQ = {
+      $match:{
+         "bedrooms":{
+            $gte: 2
+         }
+      }
+   } 
 
-   executePipePromise(pipe,collection)
+   const addFieldsQ = { 
+      $addFields: {
+         location: "$address.location.coordinates",
+         averageReviewScores: {
+            "$avg": "$review_scores"
+        }
+      }
+   }
+
+   const projectQ = {
+      $project:{
+         bedrooms:1,
+         host:{
+            host_name:1,
+            host_location:1
+         },
+         "location":1,
+      }
+   }
+
+   const limitQ = { $limit: 3 };
+   let pipe = [matchQ, addFieldsQ, projectQ, limitQ]
+
+
+
+   executePipePromise(pipe,airBnB)
    .then(array=>{
       console.log(array)
       closeDB();
