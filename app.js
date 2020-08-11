@@ -27,20 +27,40 @@ function executePipePromise(pipe,collection){
 async function main(){
    let airBnB = await getCollection();
 
+   var from_date = new Date('2019-01-01 00:00:00')
+   var to_date = new Date('2019-02-01 00:00:00')
+   
+   // https://docs.mongodb.com/manual/reference/operator/aggregation-pipeline/
    const matchQ = {
       $match:{
          "bedrooms":{
             $gte: 2
-         }
+         },
+         "last_review":{
+            "$gte": from_date,
+            "$lte": to_date
+        }
+
       }
    } 
 
    const addFieldsQ = { 
       $addFields: {
          location: "$address.location.coordinates",
-         averageReviewScores: {
-            "$avg": "$review_scores"
-        }
+      }
+   }
+
+   const unwindReviewsQ = {
+      $unwind:"$reviews"
+   }
+
+
+   // { $filter: { input: <array>, as: <string>, cond: <expression> } }
+   const priceFilterQ = {
+      $filter: {
+         input: "$reviews",
+         as: "reviews",
+         cond: { $gte: [ "$$reviews.date", new Date('2019-01-20 00:00:00') ] }
       }
    }
 
@@ -52,17 +72,28 @@ async function main(){
             host_location:1
          },
          "location":1,
+         reviews:priceFilterQ,
       }
    }
 
-   const limitQ = { $limit: 3 };
-   let pipe = [matchQ, addFieldsQ, projectQ, limitQ]
+   const sortQ = {
+      $sort: {
+         "bedrooms": 1 //1:ascending, -1:descending //limit 100 to see the differences
+     }
+   }
 
+   
+   const limitQ = { $limit: 100 };
+
+   let pipe = [matchQ, projectQ, sortQ, limitQ]
 
 
    executePipePromise(pipe,airBnB)
    .then(array=>{
-      console.log(array)
+      console.log(JSON.stringify(array, null, 2))
+      console.log("=================================")
+      console.log("Number of Documents: ", array.length)
+
       closeDB();
    })
    .catch(error=>{
